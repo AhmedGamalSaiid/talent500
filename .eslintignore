@@ -1,0 +1,5 @@
+*.min.js
+node_modules/*
+build/*
+src/web/ats/components/atoms/graphs/*
+**/icons/*
