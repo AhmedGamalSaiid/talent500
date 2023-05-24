@@ -1,0 +1,116 @@
+definitions:
+  #steps:
+    #- step: &code-quality-check
+    #    name: Check for code quality
+    #    image: node:14.19.0
+    #    caches:
+    #      - node
+    #    script:
+    #      - yarn install
+    #      - yarn lint:validate
+    #      - yarn format:validate
+    #      - yarn test
+    #- step: &sonarqube-check
+    #    name: Testing code using sonarqube
+    #    image: node:14.19.0
+    #    script:
+    #      - echo "Sonar pipeline running..."
+    #      - curl --insecure -OL https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.4.0.2170-linux.zip
+    #      - unzip sonar-scanner-cli-4.4.0.2170-linux.zip
+    #      - rm sonar-scanner-cli-4.4.0.2170-linux.zip
+    #      - bash ./sonar-scanner-4.4.0.2170-linux/bin/sonar-scanner -Dsonar.projectKey=ats-frontend -Dsonar.sources=. -Dsonar.host.url=http://$SONARQUBE_IP:9000 -Dsonar.login=$SONAR_USER_NAME -Dsonar.password=$SONAR_PASSWORD
+
+  services:
+    docker:
+       memory: 7128
+       #memory: 8096
+
+pipelines:
+  #default:
+    #- step: *code-quality-check
+    #- step: *sonarqube-check
+  branches:
+    development:
+      #- step: *code-quality-check
+      #- step: *sonarqube-check
+      - step:
+          name: building the ats frontend code
+          size: 2x
+          image: mesosphere/aws-cli
+          services:
+            - docker
+          script:
+            - docker build --no-cache -t ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH .
+            # aws login
+            - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+            - docker push ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH
+            #- aws cloudformation update-stack --stack-name T500-FRONT-STAGING --use-previous-template --parameters ParameterKey="BuildId",ParameterValue="$BITBUCKET_BUILD_NUMBER"
+      - step:
+         name: deploying ats-frontend code in the server
+         script:
+           - ssh ec2-user@$MACHINE_IP ansible-playbook /etc/ansible/roles/ats-frontend.yml
+
+    preprod:
+      #- step: *code-quality-check
+      - step:
+         name: building the ats frontend code
+         size: 2x
+         image: mesosphere/aws-cli
+         services:
+           - docker
+         script:
+           - docker build --no-cache -t ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH .
+           # aws login
+           - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+           - docker push ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH
+      - step:
+         name: deploying build code to preprod kubernetes cluster
+         script:
+           - ssh ec2-user@$MACHINE_IP ansible-playbook /etc/ansible/roles/ats-preprod-frontend.yml
+
+    user-attribution-epic:
+       #- step: *code-quality-check
+       - step:
+           name: building the ats frontend code
+           size: 2x
+           image: mesosphere/aws-cli
+           services:
+             - docker
+           script:
+             - docker build --no-cache -t ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH .
+             # aws login
+             - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+             - docker push ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH
+             
+       - step:
+           name: deploying code to ec2-instance
+           script:
+             - ssh ec2-user@$MACHINE_IP ansible-playbook /etc/ansible/roles/canvas-uat-frontend-deployment.yml
+
+    master:
+      - step:
+          name: building the ats frontend code
+          image: mesosphere/aws-cli
+          size: 2x
+          services:
+            - docker
+          script:
+            - docker build --no-cache -t ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH .
+            # aws login
+            - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+            - docker push ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH
+
+
+    prod:
+      - step:
+          name: building the ats frontend code
+          image: mesosphere/aws-cli
+          size: 2x
+          services:
+            - docker
+          script:
+            - docker build --no-cache -t ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH .
+            # aws login
+            - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+            - docker push ${AWS_REGISTRY_URL}:$BITBUCKET_BRANCH
+
